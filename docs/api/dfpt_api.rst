@@ -1,6 +1,8 @@
 dfpt Package
 ============
 
+.. contents::
+   :backlinks: top
 
 :mod:`dpft` Package
 ----------------------
@@ -26,10 +28,10 @@ dfpt Package
    :undoc-members:
    :show-inheritance:
 
-:mod:`eph` Module
------------------
+:mod:`gruneisen` Module
+-----------------------
 
-.. automodule:: abipy.dfpt.eph
+.. automodule:: abipy.dfpt.gruneisen
    :members:
    :undoc-members:
    :show-inheritance:
@@ -38,6 +40,14 @@ dfpt Package
 ---------------------
 
 .. automodule:: abipy.dfpt.phonons
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+:mod:`tensors` Module
+---------------------
+
+.. automodule:: abipy.dfpt.tensors
    :members:
    :undoc-members:
    :show-inheritance:

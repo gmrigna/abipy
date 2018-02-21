@@ -12,10 +12,9 @@ import pickle
 from time import ctime
 from monty.os.path import which
 from monty.termcolor import cprint
+from monty.dev import deprecated
 from monty.string import is_string
 from monty.functools import lazy_property
-
-from abipy.iotools.cube import cube_read_structure_mesh_data
 from abipy.flowtk.netcdf import NetcdfReader, NO_DEFAULT
 
 
@@ -25,6 +24,7 @@ __all__ = [
     "Has_ElectronBands",
     "Has_PhononBands",
     "NotebookWriter",
+    "Has_Header",
 ]
 
 @six.add_metaclass(abc.ABCMeta)
@@ -81,7 +81,7 @@ class _File(object):
     def filestat(self, as_string=False):
         """
         Dictionary with file metadata
-        if `as_string` is True, a string is returned.
+        if ``as_string`` is True, a string is returned.
         """
         d = get_filestat(self.filepath)
         if not as_string: return d
@@ -110,6 +110,10 @@ class _File(object):
 
 class TextFile(_File):
 
+    #@classmethood
+    #def from_string(cls, s):
+    #    return cls.from_file(filepath)
+
     def __enter__(self):
         # Open the file
         self._file
@@ -127,7 +131,7 @@ class TextFile(_File):
         """Close the file."""
         try:
             self._file.close()
-        except:
+        except Exception:
             pass
 
     def seek(self, offset, whence=0):
@@ -135,6 +139,7 @@ class TextFile(_File):
         self._file.seek(offset, whence)
 
 
+@deprecated(message="AbinitOutNcFile is deprecated, use abipy.abio.outputs.OutNcFile")
 class AbinitOutNcFile(NetcdfReader):
     """
     Class representing the _OUT.nc file.
@@ -154,17 +159,29 @@ class AbinitNcFile(_File):
     """
     Abstract class representing a Netcdf file with data saved
     according to the ETSF-IO specifications (when available).
+    An AbinitNcFile has a netcdf reader to read data from file and build objects.
     """
     def ncdump(self, *nc_args, **nc_kwargs):
         """Returns a string with the output of ncdump."""
         return NcDumper(*nc_args, **nc_kwargs).dump(self.filepath)
 
+    @lazy_property
+    def abinit_version(self):
+        """String with abinit version: three digits separated by comma."""
+        return self.reader.rootgrp.getncattr("abinit_version")
+
+    @abc.abstractproperty
+    def params(self):
+        """
+        :class:`OrderedDict` with the convergence parameters
+        Used to construct |pandas-DataFrames|.
+        """
+
 
 @six.add_metaclass(abc.ABCMeta)
 class AbinitFortranFile(_File):
     """
-    Abstract class representing a fortran file containing
-    output data from abinit.
+    Abstract class representing a fortran file containing output data from abinit.
     """
     def close(self):
         pass
@@ -175,15 +192,15 @@ class CubeFile(_File):
 
     .. attribute:: structure
 
-        :class:`Structure` object
+        |Structure| object
 
     .. attribute:: mesh
 
-        :class:`Mesh3d` object with information on the uniform 3d mesh.
+        |Mesh3d| object with information on the uniform 3d mesh.
 
     .. attribute:: data
 
-        numpy array of shape [nx, ny, nz] with numerical values on the real-space mesh.
+        |numpy-array| of shape [nx, ny, nz] with numerical values on the real-space mesh.
     """
     def __init__(self, filepath):
         from abipy.iotools.cube import cube_read_structure_mesh_data
@@ -206,31 +223,33 @@ class Has_Structure(object):
 
     @abc.abstractproperty
     def structure(self):
-        """Returns the :class:`Structure` object."""
+        """Returns the |Structure| object."""
 
-    def show_bz(self, **kwargs):
+    def plot_bz(self, **kwargs):
         """
         Gives the plot (as a matplotlib object) of the symmetry line path in the Brillouin Zone.
         """
-        return self.structure.show_bz(**kwargs)
+        return self.structure.plot_bz(**kwargs)
+
+    # To maintain backward compatbility
+    show_bz = plot_bz
 
     def export_structure(self, filepath):
         """
         Export the structure on file.
 
-        returns:
-            Instance of :class:`Visualizer`
+        returns: |Visualizer| instance.
         """
         return self.structure.export(filepath)
 
-    def visualize_structure_with(self, visu_name):
+    def visualize_structure_with(self, appname):
         """
         Visualize the crystalline structure with the specified visualizer.
 
-        See :class:`Visualizer` for the list of applications and formats supported.
+        See |Visualizer| for the list of applications and formats supported.
         """
         from abipy.iotools.visualizer import Visualizer
-        visu = Visualizer.from_name(visu_name)
+        visu = Visualizer.from_name(appname)
 
         for ext in visu.supported_extensions():
             ext = "." + ext
@@ -239,7 +258,7 @@ class Has_Structure(object):
             except visu.Error:
                 pass
         else:
-            raise visu.Error("Don't know how to export data for visu_name %s" % visu_name)
+            raise visu.Error("Don't know how to export data for appname %s" % appname)
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -248,7 +267,7 @@ class Has_ElectronBands(object):
 
     @abc.abstractproperty
     def ebands(self):
-        """Returns the :class:`ElectronBands` object."""
+        """Returns the |ElectronBands| object."""
 
     @property
     def nsppol(self):
@@ -277,7 +296,7 @@ class Has_ElectronBands(object):
 
     @property
     def nelect(self):
-        """Number of elecrons per unit cell"""
+        """Number of electrons per unit cell"""
         return self.ebands.nelect
 
     @property
@@ -290,21 +309,44 @@ class Has_ElectronBands(object):
         """Iterable with the Kpoints."""
         return self.ebands.kpoints
 
+    @lazy_property
+    def tsmear(self):
+        return self.ebands.smearing.tsmear_ev.to("Ha")
+
+    def get_ebands_params(self):
+        """:class:`OrderedDict` with the convergence parameters."""
+        return collections.OrderedDict([
+            ("nsppol", self.nsppol),
+            ("nspinor", self.nspinor),
+            ("nspden", self.nspden),
+            ("nband", self.nband),
+            ("nkpt", self.nkpt),
+        ])
+
     def plot_ebands(self, **kwargs):
         """Plot the electron energy bands. See the :func:`ElectronBands.plot` for the signature."""
         return self.ebands.plot(**kwargs)
 
-    def plot_ebands_with_edos(self, dos, **kwargs):
-        return self.ebands.plot_with_edos(dos, **kwargs)
+    def plot_ebands_with_edos(self, edos, **kwargs):
+        """Plot the electron energy bands with DOS. See the :func:`ElectronBands.plot_with_edos` for the signature."""
+        return self.ebands.plot_with_edos(edos, **kwargs)
 
 
 @six.add_metaclass(abc.ABCMeta)
 class Has_PhononBands(object):
-    """Mixin class for :class:`AbinitNcFile` containing phonon data."""
+    """
+    Mixin class for :class:`AbinitNcFile` containing phonon data.
+    """
 
     @abc.abstractproperty
     def phbands(self):
-        """Returns the :class:`PhononBands` object."""
+        """Returns the |PhononBands| object."""
+
+    def get_phbands_params(self):
+        """:class:`OrderedDict` with the convergence parameters."""
+        return collections.OrderedDict([
+            ("nqpt", len(self.phbands.qpoints)),
+        ])
 
     def plot_phbands(self, **kwargs):
         """
@@ -332,7 +374,7 @@ class NcDumper(object):
     def dump(self, filepath):
         """Returns a string with the output of ncdump."""
         if self.ncdump is None:
-            return "Cannot find ncdump tool in PATH"
+            return "Cannot find ncdump tool in $PATH"
         else:
             from subprocess import check_output
             return check_output(["ncdump", filepath])
@@ -371,15 +413,12 @@ def get_filestat(filepath):
 @six.add_metaclass(abc.ABCMeta)
 class NotebookWriter(object):
     """
-    Mixin class for objects that are able to generate jupyter notebooks.
+    Mixin class for objects that are able to generate jupyter_ notebooks.
     Subclasses must provide a concrete implementation of `write_notebook`.
-
-    See also:
-        http://nbviewer.jupyter.org/github/maxalbert/auto-exec-notebook/blob/master/how-to-programmatically-generate-and-execute-an-ipython-notebook.ipynb
     """
-    def make_and_open_notebook(self, nbpath=None, foreground=False):
+    def make_and_open_notebook(self, nbpath=None, foreground=False):  # pragma: no cover
         """
-        Generate an ipython notebook and open it in the browser.
+        Generate an jupyter_ notebook and open it in the browser.
 
         Args:
             nbpath: If nbpath is None, a temporay file is created.
@@ -390,35 +429,39 @@ class NotebookWriter(object):
             system exit code.
 
         Raise:
-            RuntimeError if jupyter is not in $PATH
+            `RuntimeError` if jupyter_ is not in $PATH
         """
         nbpath = self.write_notebook(nbpath=nbpath)
 
         if which("jupyter") is None:
-            raise RuntimeError("Cannot find jupyter in PATH. Install it with `conda install jupyter or `pip install jupyter`")
+            raise RuntimeError("Cannot find jupyter in $PATH. Install it with `conda install jupyter or `pip install jupyter`")
 
         if foreground:
-            cmd = "jupyter notebook %s" % nbpath
-            return os.system(cmd)
+            return os.system("jupyter notebook %s" % nbpath)
         else:
-            cmd = "jupyter notebook %s &> /dev/null &" % nbpath
-            print("Executing:", cmd)
-            import subprocess
+            fd, tmpname = tempfile.mkstemp(text=True)
+            print(tmpname)
             cmd = "jupyter notebook %s" % nbpath
-
-            try:
-                from subprocess import DEVNULL # py3k
-            except ImportError:
-                DEVNULL = open(os.devnull, "wb")
-
-            process = subprocess.Popen(cmd.split(), shell=False, stdout=DEVNULL, stderr=DEVNULL)
+            print("Executing:", cmd)
+            print("stdout and stderr redirected to %s" % tmpname)
+            import subprocess
+            process = subprocess.Popen(cmd.split(), shell=False, stdout=fd, stderr=fd)
             cprint("pid: %s" % str(process.pid), "yellow")
+            return 0
+
+    @staticmethod
+    def get_nbformat_nbv():
+        """Return nbformat module, notebook version module"""
+        import nbformat
+        nbv = nbformat.v4
+        return nbformat, nbv
 
     def get_nbformat_nbv_nb(self, title=None):
         """
+        Return ``nbformat`` module, notebook version module
+        and new notebook with title and import section
         """
-        import nbformat
-        nbv = nbformat.v4
+        nbformat, nbv = self.get_nbformat_nbv()
         nb = nbv.new_notebook()
 
         if title is not None:
@@ -428,15 +471,28 @@ class NotebookWriter(object):
             nbv.new_code_cell("""\
 from __future__ import print_function, division, unicode_literals, absolute_import
 
-import sys
-import os
+import sys, os
 import numpy as np
 
 %matplotlib notebook
 from IPython.display import display
-#import seaborn as sns   # uncomment this line to activate seaborn settings.
 
-from abipy import abilab""")
+# This to render pandas DataFrames with https://github.com/quantopian/qgrid
+#import qgrid
+#qgrid.nbinstall(overwrite=True)  # copies javascript dependencies to your /nbextensions folder
+
+# This to view Mayavi visualizations. See http://docs.enthought.com/mayavi/mayavi/tips.html
+#from mayavi import mlab; mlab.init_notebook(backend='x3d', width=None, height=None, local=True)
+
+from abipy import abilab
+
+# Tell AbiPy we are inside a notebook and use seaborn settings for plots.
+# See https://seaborn.pydata.org/generated/seaborn.set.html#seaborn.set
+abilab.enable_notebook(with_seaborn=True)
+
+# AbiPy widgets for pandas and seaborn plot APIs
+#import abipy.display.seabornw import snw
+#import abipy.display.pandasw import pdw""")
         ])
 
         return nbformat, nbv, nb
@@ -444,28 +500,31 @@ from abipy import abilab""")
     @abc.abstractmethod
     def write_notebook(self, nbpath=None):
         """
-        Write an ipython notebook to nbpath. If nbpath is None, a temporay file is created.
-        Return path to the notebook. A typical template is given below.
+        Write a jupyter_ notebook to nbpath. If nbpath is None, a temporay file is created.
+        Return path to the notebook. A typical template:
+
+        .. code-block:: python
+
+            # Preable.
+            nbformat, nbv, nb = self.get_nbformat_nbv_nb(title=None)
+
+            #####################
+            # Put your code here
+            nb.cells.extend([
+                nbv.new_markdown_cell("# This is a markdown cell"),
+                nbv.new_code_cell("a = 1"),
+            ])
+            #####################
+
+            # Call _write_nb_nbpath
+            return self._write_nb_nbpath(nb, nbpath)
         """
-        # Preable.
-        nbformat, nbv, nb = self.get_nbformat_nbv_nb(title=None)
-
-        #####################
-        # Put your code here
-        nb.cells.extend([
-            nbv.new_markdown_cell("# This is a markdown cell"),
-            nbv.new_code_cell("a = 1"),
-        ])
-        #####################
-
-        # Call _write_nb_nbpath
-        return self._write_nb_nbpath(nb, nbpath)
 
     @staticmethod
     def _write_nb_nbpath(nb, nbpath):
         """
-        This method must be called at the end of `write_notebook`.
-        nb is the ipython notebook and nbpath the argument passed to `write_notebook`.
+        This method must be called at the end of ``write_notebook``.
+        nb is the jupyter notebook and nbpath the argument passed to ``write_notebook``.
         """
         import io, os, tempfile
         if nbpath is None:
@@ -480,7 +539,7 @@ from abipy import abilab""")
     @classmethod
     def pickle_load(cls, filepath):
         """
-        Loads the object from a pickle file
+        Loads the object from a pickle file.
         """
         with open(filepath, "rb") as fh:
             new = pickle.load(fh)
@@ -501,3 +560,30 @@ from abipy import abilab""")
         with open(filepath, "wb") as fh:
             pickle.dump(self, fh)
             return filepath
+
+    #@abc.abstractmethod
+    #def expose(self, slide_mode=False, slide_timeout=None, verbose=0, **kwargs):
+    #    """
+    #    This function builds and shows a predefined list of matplotlib figures with minimal input from the user.
+    #    Used in abiview.py to get a quick look at the results.
+
+    #    Args:
+    #        slide_mode: If true, iterate over figures. Default: Expose all figures at once.
+    #        slide_timeout: Close figure after slide-timeout seconds. Block if None.
+    #        verbose: verbosity level
+    #    """
+
+
+class Has_Header(object):
+    """Mixin class for netcdf_ files containing the Abinit header."""
+
+    @lazy_property
+    def hdr(self):
+        """|AttrDict| with the Abinit header e.g. hdr.ecut."""
+        return self.reader.read_abinit_hdr()
+
+    #def get_hdr_params(self):
+    #    """:class:`OrderedDict` with the convergence parameters."""
+    #    return collections.OrderedDict([
+
+    #def compare_hdr(self, other_hdr):

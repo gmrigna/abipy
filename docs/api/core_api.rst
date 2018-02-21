@@ -1,6 +1,9 @@
 core Package
 ============
 
+.. contents::
+   :backlinks: top
+
 :mod:`core` Package
 -------------------
 
@@ -33,10 +36,34 @@ core Package
    :undoc-members:
    :show-inheritance:
 
+:mod:`globals` Module
+---------------------
+
+.. automodule:: abipy.core.globals
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 :mod:`gsphere` Module
 ---------------------
 
 .. automodule:: abipy.core.gsphere
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+:mod:`irrepsdb` Module
+----------------------
+
+.. automodule:: abipy.core.irrepsdb
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+:mod:`kpoints` Module
+---------------------
+
+.. automodule:: abipy.core.kpoints
    :members:
    :undoc-members:
    :show-inheritance:
@@ -57,18 +84,18 @@ core Package
    :undoc-members:
    :show-inheritance:
 
-:mod:`irrepsdb` Module
-----------------------
+:mod:`restapi` Module
+---------------------
 
-.. automodule:: abipy.core.irrepsdb
+.. automodule:: abipy.core.restapi
    :members:
    :undoc-members:
    :show-inheritance:
 
-:mod:`kpoints` Module
----------------------
+:mod:`skw` Module
+-----------------
 
-.. automodule:: abipy.core.kpoints
+.. automodule:: abipy.core.skw
    :members:
    :undoc-members:
    :show-inheritance:
