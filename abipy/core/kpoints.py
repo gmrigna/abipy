@@ -1374,10 +1374,10 @@ class KSamplingInfo(AttrDict):
                     self["mpdivs"] = np.diag(self.kptrlatt)
 
                 else:
-                    cprint("monkhorst_pack_folding variables has not been written to netcdf file.", "magenta")
-                    cprint("Received %s" % str(self["mpdivs"]), "magenta")
-                    cprint("Set mpdivs to None, this could create problems in post-processing tools.", "magenta")
-                    cprint("If needed, use python netcdf to change the value of `monkhorst_pack_folding`", "magenta")
+                    #cprint("monkhorst_pack_folding variables has not been written to netcdf file.", "magenta")
+                    #cprint("Received %s" % str(self["mpdivs"]), "magenta")
+                    #cprint("Set mpdivs to None, this could create problems in post-processing tools.", "magenta")
+                    #cprint("If needed, use python netcdf to change the value of `monkhorst_pack_folding`", "magenta")
                     self["mpdivs"] = None
 
     def __str__(self):
